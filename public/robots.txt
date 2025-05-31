@@ -1,0 +1,6 @@
+User-agent: *
+Disallow:
+11 of 28
+4 of 10
+30X of 174
+10 of 15
