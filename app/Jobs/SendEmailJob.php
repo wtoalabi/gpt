@@ -35,8 +35,10 @@ class SendEmailJob implements ShouldQueue
      * Execute the job.
      */
     public function handle(){
+
+
         $sendSmtpEmails = new SendSmtpEmail([
-            'sender' => ['name' => $this->sender, 'email' => 'orders@outletmartuk.store'],
+            'sender' => ['name' => $this->sender, 'email' => env('SENDER_EMAIL', 'orders@outletmartuk.store')],
             'to' => [['email' => $this->email]],
             'subject' => $this->subject,
             'htmlContent' => $this->message,

@@ -85,9 +85,10 @@ class SMSSend extends Controller
     }
 
     public function mailjet(){
-        $apikey = env('MAILJET_API_KEY');
-        $apisecret = env('MAILJET_API_SECRET');
-        $mj = new Client($apikey, $apisecret, true, ['version' => 'v3.1']);
+        $apikey = "d73b4084a97d8692a3e656a77281cf2d";
+        $apisecret = "baafbf6991a961b7c7ffacbe45c9c86f";
+        //$mj = new Client($apikey, $apisecret);
+        $mj = new Client($apikey,$apisecret,true,['version' => 'v3.1']);
 
         $body = [
             'Messages' => [

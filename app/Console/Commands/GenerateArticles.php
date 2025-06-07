@@ -447,7 +447,7 @@ p. Pin this article for future reference and keep practicing! You'll soon become
 
 function get_content($category, $niche, $title, $client) {
     $retry_count = 0;
-    $OPENAI_API_KEY = env('OPENAI_API');
+    $OPENAI_API_KEY = env('OPENAI_API_KEY');
     //dd([$niche, $title]);
     $text = "Write an SEO optimized blog post on a ${niche} blog titled: $title. Generate a unique [2-word or 3 word] keyword. Put the keyword on a separate, opening line. Spread the keyword at least 4 times within the post and once in the opening paragraph, wrapped in <strong> and <i> html tags Create two sub-headings and wrap each in an <h2> HTML tag. The tone of the post should be upbeat, fun and generally positive. Include at least one relevant wikipedia page link and one other relevant webmd post";
     //$text = "Write an SEO optimized post on a ${niche} blog, titled '${title}'. Generate a UNIQUE [3-words or more] keyword and wrap it in a <strong> and <i> html tag. Spread the keyword at least 6 times across the post and once in the opening paragraph. Wrap each sub-heading in an <h2> HTML tag. The tone of the post should be upbeat, fun and generally positive. Assume the readers are generally familliar with the keyword, so skip the introduction. Include at least one relevant wikipedia page link in an html <a> tag.";

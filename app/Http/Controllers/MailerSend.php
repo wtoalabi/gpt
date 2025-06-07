@@ -10,95 +10,171 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
 use Mailjet\Client;
 use Mailjet\Resources;
+use Illuminate\Support\Facades\Log;
 
 class MailerSend extends Controller
 {
-    public function brevo()
+    public function brevo(Request $request)
     {
-        // Get the raw request body and parse it manually to handle large or malformed JSON
-        $rawContent = file_get_contents('php://input');
-        $decodedData = json_decode($rawContent, true);
-        $jsonError = json_last_error();
-        
-        // If JSON is malformed, extract data using regex
-        if ($jsonError !== JSON_ERROR_NONE) {
-            // Extract sender
-            preg_match('/"sender"\s*:\s*"([^"]+)"/', $rawContent, $senderMatches);
-            $sender = $senderMatches[1] ?? null;
+        Log::info('Request data for /send_brevo:', $request->all());
+        Log::info('Request content type:', ['content_type' => $request->header('Content-Type')]);
+        Log::info('Raw request body:', ['body' => $request->getContent()]);
+
+        // Try to get data from both request() helper and Request object
+        $to = $request->input('to') ?? request('to');
+        $subject = $request->input('subject') ?? request('subject');
+        $message = $request->input('message') ?? request('message');
+        $sender = $request->input('sender') ?? request('sender');
+
+        // If all parameters are null, try to manually parse JSON
+        if (is_null($to) && is_null($subject) && is_null($message) && is_null($sender)) {
+            $rawBody = $request->getContent();
+            Log::info('Attempting manual JSON parsing due to null parameters');
             
-            // Extract subject
-            preg_match('/"subject"\s*:\s*"([^"]+)"/', $rawContent, $subjectMatches);
-            $subject = $subjectMatches[1] ?? null;
-            
-            // Extract message - handling HTML content
-            preg_match('/"message"\s*:\s*"(.*?)"\s*,\s*"to"/', $rawContent, $messageMatches);
-            $message = $messageMatches[1] ?? null;
-            if ($message) {
-                // Unescape the escaped quotes and slashes
-                $message = stripcslashes($message);
+            if (!empty($rawBody)) {
+                // Clean up the JSON (remove trailing commas and fix formatting)
+                $cleanedBody = trim($rawBody);
+                
+                // Remove trailing commas before closing braces/brackets
+                $cleanedBody = preg_replace('/,(\s*[}\]])/', '$1', $cleanedBody);
+                
+                // Ensure the JSON ends properly
+                if (!str_ends_with(trim($cleanedBody), '}')) {
+                    $cleanedBody = rtrim($cleanedBody, ',') . '}';
+                }
+                
+                Log::info('Cleaned JSON body:', ['cleaned_body' => $cleanedBody]);
+                
+                $jsonData = json_decode($cleanedBody, true);
+                
+                if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
+                    $to = $jsonData['to'] ?? null;
+                    $subject = $jsonData['subject'] ?? null;
+                    $message = $jsonData['message'] ?? null;
+                    $sender = $jsonData['sender'] ?? null;
+                    Log::info('Successfully parsed JSON manually', [
+                        'parsed_keys' => array_keys($jsonData)
+                    ]);
+                } else {
+                    Log::error('Failed to parse JSON manually', [
+                        'json_error' => json_last_error_msg(),
+                        'json_error_code' => json_last_error()
+                    ]);
+                    
+                    // Try alternative parsing - extract values using regex as fallback
+                    Log::info('Attempting regex-based parsing as fallback');
+                    
+                    // Extract 'to' array
+                    if (preg_match('/"to":\s*\[(.*?)\]/', $cleanedBody, $matches)) {
+                        $toMatches = [];
+                        if (preg_match_all('/"([^"]+)"/', $matches[1], $toMatches)) {
+                            $to = $toMatches[1];
+                        }
+                    }
+                    
+                    // Extract other fields
+                    if (preg_match('/"sender":\s*"([^"]*)"/', $cleanedBody, $matches)) {
+                        $sender = $matches[1];
+                    }
+                    
+                    if (preg_match('/"subject":\s*"([^"]*)"/', $cleanedBody, $matches)) {
+                        $subject = $matches[1];
+                    }
+                    
+                    // Extract message (more complex due to HTML content)
+                    if (preg_match('/"message":\s*"(.+?)"(?:\s*[,}])/', $cleanedBody, $matches)) {
+                        $message = $matches[1];
+                        // Unescape the content
+                        $message = str_replace(['\\"', "\\'", '\\\\'], ['"', "'", '\\'], $message);
+                    } else {
+                        // Try alternative message extraction for cases with problematic quotes
+                        if (preg_match('/"message":\s*"(.+?)"\s*(?:[,}]|$)/s', $cleanedBody, $matches)) {
+                            $message = $matches[1];
+                            // Clean up escaped content
+                            $message = str_replace(['\\"', "\\'", '\\\\'], ['"', "'", '\\'], $message);
+                            // Remove leading single quote if it exists
+                            if (str_starts_with($message, "'")) {
+                                $message = substr($message, 1);
+                            }
+                        }
+                    }
+                    
+                    if ($to || $subject || $message || $sender) {
+                        Log::info('Successfully extracted data using regex fallback', [
+                            'to_found' => !empty($to),
+                            'subject_found' => !empty($subject),
+                            'message_found' => !empty($message),
+                            'sender_found' => !empty($sender)
+                        ]);
+                    }
+                }
             }
-            
-            // Extract to array
-            preg_match('/"to"\s*:\s*\[(.+?)\]/', $rawContent, $toMatches);
-            $toStr = $toMatches[1] ?? '';
-            if ($toStr) {
-                preg_match_all('/"([^"]+)"/', $toStr, $emailMatches);
-                $to = $emailMatches[1] ?? [];
-            } else {
-                $to = [];
-            }
-        } else {
-            // Use the decoded data if available
-            $to = $decodedData['to'] ?? [];
-            $subject = $decodedData['subject'] ?? null;
-            $message = $decodedData['message'] ?? null;
-            $sender = $decodedData['sender'] ?? null;
         }
 
-        // Ensure $to is always an array
-        if (!is_array($to)) {
-            if (is_string($to)) {
-                // If it's a comma-separated string, convert to array
-                $to = array_map('trim', explode(',', $to));
-            } else {
-                $to = [];
+        // Debug what we received
+        Log::info('Parsed request data:', [
+            'to' => $to,
+            'to_type' => gettype($to),
+            'subject' => $subject,
+            'message' => substr($message ?? '', 0, 100) . '...', // Log first 100 chars
+            'sender' => $sender
+        ]);
+
+        // Handle case where 'to' might be a JSON string
+        if (is_string($to)) {
+            $decodedTo = json_decode($to, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decodedTo)) {
+                $to = $decodedTo;
+                Log::info('Successfully decoded "to" parameter from JSON string to array');
             }
         }
-        
-        // Filter out any empty values
-        $to = array_filter($to, function($email) {
-            return !empty($email);
-        });
-        
-        // Validate the array
-        if (empty($to)) {
+
+        // Validate inputs with more robust checking
+        if (empty($to) || !is_array($to)) {
+            Log::error('Validation failed for "to" parameter.', [
+                'to_parameter' => $to,
+                'to_type' => gettype($to),
+                'is_array' => is_array($to),
+                'is_empty' => empty($to)
+            ]);
             return response()->json([
                 'status' => 'error',
-                'message' => 'No valid email addresses provided'
+                'message' => 'No valid email addresses provided',
+                'debug' => [
+                    'received_to' => $to,
+                    'type' => gettype($to),
+                    'is_array' => is_array($to)
+                ]
+            ], 400);
+        }
+
+        // Validate each email in the array
+        $validEmails = [];
+        foreach ($to as $email) {
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $validEmails[] = $email;
+            } else {
+                Log::warning('Invalid email address found:', ['email' => $email]);
+            }
+        }
+
+        if (empty($validEmails)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No valid email addresses found in the provided list'
             ], 400);
         }
 
         // Add additional message validation
         if (empty($message) || !is_string($message)) {
-            \Illuminate\Support\Facades\Log::error('Invalid message content', ['message' => $message, 'type' => gettype($message)]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Invalid message content'
             ], 400);
         }
 
-        // Log the original message
-        \Illuminate\Support\Facades\Log::debug('Original message', ['message' => $message]);
-        
-        // Sanitize and prepare message content for the API
-        // 1. Strip tags but allow basic HTML formatting
+        // Optional: Sanitize or validate message content
         $sanitizedMessage = strip_tags($message, '<div><p><a><i><b><strong><em>');
-        // 2. Compress whitespace to ensure it works with the API
-        $sanitizedMessage = preg_replace('/\s+/', ' ', $sanitizedMessage);
-        $sanitizedMessage = trim($sanitizedMessage);
-        
-        // Log the sanitized message
-        \Illuminate\Support\Facades\Log::debug('Sanitized message', ['message' => $sanitizedMessage]);
 
         $delayBetweenBatches = 30; // seconds
         $countPerTime = 10;
@@ -106,7 +182,7 @@ class MailerSend extends Controller
         $batchNumber = 0;
         $dispatchedJobsCount = 0;
 
-        foreach (array_chunk($to, $countPerTime) as $emailBatch) {
+        foreach (array_chunk($validEmails, $countPerTime) as $emailBatch) {
             $delay = now()->addSeconds($delayBetweenBatches * $batchNumber);
 
             foreach ($emailBatch as $email) {
@@ -117,10 +193,16 @@ class MailerSend extends Controller
             $batchNumber++;
         }
 
+        Log::info('Successfully queued emails:', [
+            'total_emails' => count($validEmails),
+            'dispatched_jobs' => $dispatchedJobsCount
+        ]);
+
         return response()->json([
             'status' => 'success',
             'message' => 'Emails queued for sending',
             'dispatched_jobs_count' => $dispatchedJobsCount,
+            'valid_emails_count' => count($validEmails)
         ]);
     }
 
@@ -130,7 +212,7 @@ class MailerSend extends Controller
         $sender = request('sender');
         //dd($message);
         $sendSmtpEmails = new SendSmtpEmail([
-            'sender' => ['name' => $sender, 'email' => 'orders@outletmartuk.store'],
+            'sender' => ['name' => $sender, 'email' => env('SENDER_EMAIL', 'orders@outletmartuk.store')],
             'to' => [['email' => $recipient]],
             'subject' => $subject,
             'htmlContent' => $message,
@@ -150,18 +232,19 @@ class MailerSend extends Controller
     public function mailjet(){
         $apikey = env('MAILJET_API_KEY');
         $apisecret = env('MAILJET_API_SECRET');
-        $mj = new Client($apikey, $apisecret, true, ['version' => 'v3.1']);
+        //$mj = new Client($apikey, $apisecret);
+        $mj = new Client($apikey,$apisecret,true,['version' => 'v3.1']);
 
         $body = [
             'Messages' => [
                 [
                     'From' => [
-                        'Email' => "orders@outletmartuk.store",
+                        'Email' => env('SENDER_EMAIL', 'orders@outletmartuk.store'),
                         'Name' => "OSUK"
                     ],
                     'To' => [
                         [
-                            'Email' => "wtoalabi@gmail.com",
+                            'Email' => env('DEFAULT_RECIPIENT_EMAIL', 'wtoalabi@gmail.com'),
                             'Name' => "You"
                         ]
                     ],

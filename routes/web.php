@@ -35,7 +35,7 @@ Route::get('/delete-tweets/{username}', [TweetDelete::class, 'deleteTweets']);
 Route::post('/demo', function () {
 $message = request('message');
 dd($message);
-$OPENAI_API_KEY = env('OPENAI_API');
+$OPENAI_API_KEY = env('OPENAI_API_KEY');
 sleep(10);
     $client = new GuzzleHttp\Client();
     $response = $client->request('POST', 'https://api.openai.com/v1/chat/completions', [

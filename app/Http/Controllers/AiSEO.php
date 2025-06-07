@@ -430,7 +430,7 @@ p. Pin this article for future reference and keep practicing! You'll soon become
 
         function get_content($category, $niche, $title, $client) {
             $retry_count = 0;
-            $OPENAI_API_KEY = env('OPENAI_API');
+            $OPENAI_API_KEY = env('OPENAI_API_KEY');
             $text = "Imagine you are running a fitness focused blog, write an SEO optimized, 800 words or more article on '$title' .Wrap each new section sub-topic in h2 tags";
 
 
@@ -563,18 +563,18 @@ p. Pin this article for future reference and keep practicing! You'll soon become
         $message = request('message');
        $message = "Cordros Capital Limited has predicted that the Nigerian economy will witness a rise in inflation and a volatile equity market in the year 2024.
 
-The firm, in its Economic Outlook for 2024, recalled that the Nigerian economy remained on a positive growth path in the 2023 financial year, saying, however, that economic activities were hampered by the cash crunch induced by the Central Bank of Nigeria’s naira redesign policy, electioneering activities, petrol subsidy removal, and lingering currency pressures further triggered by the foreign exchange liberalisation.
+The firm, in its Economic Outlook for 2024, recalled that the Nigerian economy remained on a positive growth path in the 2023 financial year, saying, however, that economic activities were hampered by the cash crunch induced by the Central Bank of Nigeria's naira redesign policy, electioneering activities, petrol subsidy removal, and lingering currency pressures further triggered by the foreign exchange liberalisation.
 
-In its projections for the 2024 financial year,  Cordos said it expects real Gross Domestic Product growth to settle higher than in the 2023 financial year “as we estimate that the oil sector’s growth will increase faster, in line with a recovery in crude oil production, amid the favourable base effects from the prior year.
+In its projections for the 2024 financial year,  Cordos said it expects real Gross Domestic Product growth to settle higher than in the 2023 financial year "as we estimate that the oil sector's growth will increase faster, in line with a recovery in crude oil production, amid the favourable base effects from the prior year.
 
-“Elsewhere, as the impact of government reforms normalises, we expect the non-oil sector to grow slightly higher relative to the 2023 financial year, supported by the services sector. Overall, we expect the oil sector to grow by 12.55 per cent year-on-year, and the non-oil sector to grow by 2.79 per cent year-on-year. Consequently, we forecast a GDP growth of 3.32 per cent year-on-year in the 2024 financial year.
+"Elsewhere, as the impact of government reforms normalises, we expect the non-oil sector to grow slightly higher relative to the 2023 financial year, supported by the services sector. Overall, we expect the oil sector to grow by 12.55 per cent year-on-year, and the non-oil sector to grow by 2.79 per cent year-on-year. Consequently, we forecast a GDP growth of 3.32 per cent year-on-year in the 2024 financial year.
 
 For inflation, Cordos presented three scenarios – base, bull and bear cases.
 
-“For the base case, it stated that PMS prices might rise to NGN657.00/litre; the currency trades between NGN800.00/USD to NGN850.00/USD at the Nigerian Autonomous Foreign Exchange Market window, and electricity tariff hike of 20.0 per cent with a full-year outlook average of 24.65 per cent year-on-year (2024 financial year average).";  //  dd($message);
+"For the base case, it stated that PMS prices might rise to NGN657.00/litre; the currency trades between NGN800.00/USD to NGN850.00/USD at the Nigerian Autonomous Foreign Exchange Market window, and electricity tariff hike of 20.0 per cent with a full-year outlook average of 24.65 per cent year-on-year (2024 financial year average).";  //  dd($message);
 
        // dd($message);
-        $key = env("OPENAI_API");
+        $key = env("OPENAI_API_KEY");
         $stack = HandlerStack::create();
         $stack->push(GuzzleRetryMiddleware::factory());
         $listener = function(int $attemptNumber, float $delay, RequestInterface &$request, array &$options, ?ResponseInterface $response) {
@@ -928,7 +928,7 @@ For inflation, Cordos presented three scenarios – base, bull and bear cases.
         $message = request('message');
 
        // dd($message);
-        $key = env("OPENAI_API");
+        $key = env("OPENAI_API_KEY");
         $stack = HandlerStack::create();
         $stack->push(GuzzleRetryMiddleware::factory());
         $listener = function(int $attemptNumber, float $delay, RequestInterface &$request, array &$options, ?ResponseInterface $response) {

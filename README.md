@@ -49,29 +49,6 @@ We would like to extend our thanks to the following sponsors for funding Laravel
 - **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
 - **[Lendio](https://lendio.com)**
 
-## Environment Variables Setup
-
-This application uses several API services that require authentication. All API keys have been moved to environment variables for security. To set up your environment:
-
-1. Copy the `.env.example` file to create a new `.env` file
-2. Add the following API keys to your `.env` file:
-
-```
-# Brevo API Keys
-BREVO_API_KEY="your_brevo_api_key_here"
-
-# Mailjet API Keys
-MAILJET_API_KEY="your_mailjet_api_key_here"
-MAILJET_API_SECRET="your_mailjet_api_secret_here"
-
-# OpenAI API Keys
-OPENAI_API="your_openai_api_key_here"
-
-# Twitter API Keys (if using Twitter functionality)
-TWITTER_API_KEY="your_twitter_api_key_here"
-TWITTER_API_SECRET_KEY="your_twitter_api_secret_key_here"
-```
-
 ## Contributing
 
 Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
