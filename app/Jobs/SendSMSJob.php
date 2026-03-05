@@ -36,7 +36,7 @@ class SendSMSJob implements ShouldQueue
     {
         $client = new \GuzzleHttp\Client();
         $apiUrl = 'https://api.bulksms.com/v1/messages';
-        $authorizationHeader = 'Basic OUI2RDUxOUNBQjk5NDM0NTg3QUUxQkE2MzRDQzgyNDQtMDItRjpITlFnNTU2WFJGN253OCpITncjSXVlRElITjgxNg==';
+        $authorizationHeader = "Basic " . env('BULKSMS_API_KEY');
 
         try {
             $response = $client->post($apiUrl, [

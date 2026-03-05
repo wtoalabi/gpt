@@ -23,7 +23,10 @@ class MailerSend extends Controller
         // Try to get data from both request() helper and Request object
         $to = $request->input('to') ?? request('to');
         $subject = $request->input('subject') ?? request('subject');
-        $message = $request->input('message') ?? request('message');
+        $message = $request->input('message')
+            ?? $request->input('meesage')
+            ?? request('message')
+            ?? request('meesage');
         $sender = $request->input('sender') ?? request('sender');
 
         // If all parameters are null, try to manually parse JSON
@@ -32,8 +35,11 @@ class MailerSend extends Controller
             Log::info('Attempting manual JSON parsing due to null parameters');
             
             if (!empty($rawBody)) {
-                // Clean up the JSON (remove trailing commas and fix formatting)
+                // First, try to clean up control characters that cause JSON parsing issues
                 $cleanedBody = trim($rawBody);
+                
+                // Remove control characters except for necessary ones (tabs, newlines, carriage returns)
+                $cleanedBody = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $cleanedBody);
                 
                 // Remove trailing commas before closing braces/brackets
                 $cleanedBody = preg_replace('/,(\s*[}\]])/', '$1', $cleanedBody);
@@ -43,14 +49,14 @@ class MailerSend extends Controller
                     $cleanedBody = rtrim($cleanedBody, ',') . '}';
                 }
                 
-                Log::info('Cleaned JSON body:', ['cleaned_body' => $cleanedBody]);
+                Log::info('Cleaned JSON body:', ['cleaned_body' => substr($cleanedBody, 0, 500) . '...']);
                 
                 $jsonData = json_decode($cleanedBody, true);
                 
                 if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
                     $to = $jsonData['to'] ?? null;
                     $subject = $jsonData['subject'] ?? null;
-                    $message = $jsonData['message'] ?? null;
+                    $message = $jsonData['message'] ?? $jsonData['meesage'] ?? null;
                     $sender = $jsonData['sender'] ?? null;
                     Log::info('Successfully parsed JSON manually', [
                         'parsed_keys' => array_keys($jsonData)
@@ -64,11 +70,13 @@ class MailerSend extends Controller
                     // Try alternative parsing - extract values using regex as fallback
                     Log::info('Attempting regex-based parsing as fallback');
                     
-                    // Extract 'to' array
-                    if (preg_match('/"to":\s*\[(.*?)\]/', $cleanedBody, $matches)) {
+                    // Extract 'to' array - improved regex with multiline support
+                    if (preg_match('/"to":\s*\[(.*?)\]/s', $cleanedBody, $matches)) {
                         $toMatches = [];
-                        if (preg_match_all('/"([^"]+)"/', $matches[1], $toMatches)) {
+                        // Extract all email addresses from the array content
+                        if (preg_match_all('/"([^"]+@[^"]+)"/', $matches[1], $toMatches)) {
                             $to = $toMatches[1];
+                            Log::info('Extracted emails from to array:', ['emails' => $to]);
                         }
                     }
                     
@@ -82,13 +90,13 @@ class MailerSend extends Controller
                     }
                     
                     // Extract message (more complex due to HTML content)
-                    if (preg_match('/"message":\s*"(.+?)"(?:\s*[,}])/', $cleanedBody, $matches)) {
+                    if (preg_match('/"(?:message|meesage)":\s*"(.+?)"(?:\s*[,}])/s', $cleanedBody, $matches)) {
                         $message = $matches[1];
                         // Unescape the content
                         $message = str_replace(['\\"', "\\'", '\\\\'], ['"', "'", '\\'], $message);
                     } else {
                         // Try alternative message extraction for cases with problematic quotes
-                        if (preg_match('/"message":\s*"(.+?)"\s*(?:[,}]|$)/s', $cleanedBody, $matches)) {
+                        if (preg_match('/"(?:message|meesage)":\s*"(.+?)"\s*(?:[,}]|$)/s', $cleanedBody, $matches)) {
                             $message = $matches[1];
                             // Clean up escaped content
                             $message = str_replace(['\\"', "\\'", '\\\\'], ['"', "'", '\\'], $message);
@@ -102,6 +110,7 @@ class MailerSend extends Controller
                     if ($to || $subject || $message || $sender) {
                         Log::info('Successfully extracted data using regex fallback', [
                             'to_found' => !empty($to),
+                            'to_count' => is_array($to) ? count($to) : 0,
                             'subject_found' => !empty($subject),
                             'message_found' => !empty($message),
                             'sender_found' => !empty($sender)
@@ -173,11 +182,12 @@ class MailerSend extends Controller
             ], 400);
         }
 
-        // Optional: Sanitize or validate message content
-        $sanitizedMessage = strip_tags($message, '<div><p><a><i><b><strong><em>');
+        // Preserve the original HTML payload exactly as received.
+        // Stripping tags breaks table-based email templates and inlined CSS.
+        $emailHtml = $message;
 
-        $delayBetweenBatches = 30; // seconds
-        $countPerTime = 10;
+        $delayBetweenBatches = 15; // seconds
+        $countPerTime = 30;
 
         $batchNumber = 0;
         $dispatchedJobsCount = 0;
@@ -186,7 +196,7 @@ class MailerSend extends Controller
             $delay = now()->addSeconds($delayBetweenBatches * $batchNumber);
 
             foreach ($emailBatch as $email) {
-                SendEmailJob::dispatch($email, $subject, $sanitizedMessage, $sender)->delay($delay);
+                SendEmailJob::dispatch($email, $subject, $emailHtml, $sender)->delay($delay);
                 $dispatchedJobsCount++;
             }
 
