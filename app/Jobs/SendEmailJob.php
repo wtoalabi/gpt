@@ -54,7 +54,7 @@ class SendEmailJob implements ShouldQueue
 
         try {
             $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', env('BREVO_API_KEY'));
-            //dd($config);
+            //dd($concfig);
             $apiInstance = new TransactionalEmailsApi(
                 new \GuzzleHttp\Client(),
                 $config
